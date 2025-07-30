@@ -1,0 +1,35 @@
+# Clinical Notes Summarizer
+## 🛠️ Initial Setup Files
+
+### requirements.txt
+# Core Framework
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic>=2.4.2
+
+# AI/ML Components
+transformers>=4.35.0
+torch>=2.1.0
+tokenizers>=0.14.1
+sentencepiece>=0.1.99
+
+# Healthcare Data Processing
+fhir.resources>=7.0.2
+python-dateutil>=2.8.2
+python-multipart>=0.0.6
+
+# Development and Testing
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
+httpx>=0.25.0  # For FastAPI testing
+textstat>=0.7.3  # For readability analysis
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+click>=8.1.7
+
+# Optional: For enhanced medical NLP
+spacy>=3.7.2
+# python -m spacy download en_core_web_sm
