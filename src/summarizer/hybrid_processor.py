@@ -9,6 +9,7 @@ This processor implements the hybrid structured + AI approach:
 
 from typing import Dict, Any, List, Optional
 import uuid
+import logging
 from datetime import datetime
 
 from src.models.medication import MedicationRequest
@@ -21,6 +22,10 @@ from src.models.clinical import (
     SafetyLevel
 )
 from src.summarizer.fhir_parser import FHIRMedicationParser
+from src.summarizer.narrative_enhancement import NarrativeEnhancer, EnhancementSettings
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class HybridClinicalProcessor:
@@ -31,11 +36,24 @@ class HybridClinicalProcessor:
     while allowing AI enhancement only for safe narrative content.
     """
     
-    def __init__(self):
+    def __init__(self, enable_ai_enhancement: bool = True):
         """Initialize the hybrid clinical processor."""
         self.processor_version = "1.0.0"
         self.fhir_parser = FHIRMedicationParser()
         self.safety_enforced = True
+        self.enable_ai_enhancement = enable_ai_enhancement
+        
+        # Initialize narrative enhancer if AI enhancement is enabled
+        if self.enable_ai_enhancement:
+            self.narrative_enhancer = NarrativeEnhancer()
+            self.enhancement_settings = EnhancementSettings(
+                enhancement_aggressiveness="balanced",
+                target_grade_level=7,
+                preserve_medical_terminology=True
+            )
+        else:
+            self.narrative_enhancer = None
+            self.enhancement_settings = None
         
     def process_clinical_data(self, fhir_bundle: Dict[str, Any]) -> ClinicalSummary:
         """
@@ -79,11 +97,28 @@ class HybridClinicalProcessor:
             }
         )
         
+        # Process narrative fields if available
+        narrative_fields = {}
+        ai_processing_used = False
+        
+        if self.enable_ai_enhancement:
+            # Extract narrative content from FHIR bundle
+            extracted_narratives = self._extract_narrative_content(fhir_bundle)
+            
+            if extracted_narratives:
+                # Enhance narratives using AI
+                enhanced_narratives = self._process_narrative_fields(extracted_narratives)
+                narrative_fields = enhanced_narratives
+                ai_processing_used = len(enhanced_narratives) > 0
+        
         # Create processing metadata
+        # Use appropriate safety level based on AI processing
+        safety_level = SafetyLevel.NARRATIVE if ai_processing_used else SafetyLevel.CRITICAL
+        
         processing_metadata = ProcessingMetadata(
-            safety_level=SafetyLevel.CRITICAL,
-            processing_type=ProcessingType.PRESERVED,
-            ai_processed=False,  # No AI processing for this version
+            safety_level=safety_level,
+            processing_type=ProcessingType.AI_ENHANCED if ai_processing_used else ProcessingType.PRESERVED,
+            ai_processed=ai_processing_used,
             validation_passed=True,
             validation_errors=[]
         )
@@ -93,6 +128,10 @@ class HybridClinicalProcessor:
             summary_id=summary_id,
             patient_id=patient_id,
             medications=medication_summaries,
+            chief_complaint=narrative_fields.get("chief_complaint"),
+            diagnosis_explanation=narrative_fields.get("diagnosis_explanation"),
+            care_instructions=narrative_fields.get("care_instructions"),
+            follow_up_guidance=narrative_fields.get("follow_up_guidance"),
             safety_validation=safety_validation,
             processing_metadata=processing_metadata,
             disclaimers=[]  # Will be populated by field validator
@@ -335,3 +374,128 @@ class HybridClinicalProcessor:
                 return ref["display"]
         
         return None
+    
+    def _extract_narrative_content(self, fhir_bundle: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Extract narrative content from FHIR bundle that can be AI-enhanced.
+        
+        Args:
+            fhir_bundle: FHIR Bundle containing clinical data
+            
+        Returns:
+            Dictionary of narrative field names to content
+        """
+        narratives = {}
+        entries = fhir_bundle.get("entry", [])
+        
+        for entry in entries:
+            resource = entry.get("resource", {})
+            resource_type = resource.get("resourceType")
+            
+            # Extract narratives from different FHIR resource types
+            if resource_type == "Condition":
+                # Extract chief complaint or diagnosis information
+                if resource.get("code", {}).get("text"):
+                    narratives["chief_complaint"] = resource["code"]["text"]
+                    
+                # Extract clinical status narrative
+                if resource.get("clinicalStatus", {}).get("coding"):
+                    status_display = resource["clinicalStatus"]["coding"][0].get("display")
+                    if status_display:
+                        narratives["diagnosis_explanation"] = f"Current status: {status_display}"
+            
+            elif resource_type == "CarePlan":
+                # Extract care instructions
+                if resource.get("description"):
+                    narratives["care_instructions"] = resource["description"]
+                    
+                # Extract activity details
+                activities = resource.get("activity", [])
+                for activity in activities:
+                    detail = activity.get("detail", {})
+                    if detail.get("description"):
+                        existing_instructions = narratives.get("care_instructions", "")
+                        narratives["care_instructions"] = f"{existing_instructions} {detail['description']}".strip()
+            
+            elif resource_type == "Appointment":
+                # Extract appointment purpose and instructions
+                if resource.get("description"):
+                    narratives["follow_up_guidance"] = resource["description"]
+                    
+                # Extract appointment type for context
+                if resource.get("appointmentType", {}).get("text"):
+                    app_type = resource["appointmentType"]["text"]
+                    existing_guidance = narratives.get("follow_up_guidance", "")
+                    narratives["follow_up_guidance"] = f"Scheduled {app_type}. {existing_guidance}".strip()
+        
+        # If no specific narratives found, create some basic ones from medication data
+        if not narratives and entries:
+            med_count = sum(1 for entry in entries 
+                           if entry.get("resource", {}).get("resourceType") == "MedicationRequest")
+            if med_count > 0:
+                narratives["care_instructions"] = f"You have been prescribed {med_count} medication(s). Please take them as directed by your healthcare provider."
+        
+        return narratives
+    
+    def _process_narrative_fields(self, narratives: Dict[str, str]) -> Dict[str, str]:
+        """
+        Process narrative fields using AI enhancement.
+        
+        Args:
+            narratives: Dictionary of narrative field names to content
+            
+        Returns:
+            Dictionary of enhanced narrative content
+        """
+        if not self.narrative_enhancer or not narratives:
+            return {}
+        
+        enhanced_narratives = {}
+        
+        try:
+            # Process each narrative field
+            for field_name, content in narratives.items():
+                if content and content.strip():
+                    # Enhance the narrative content
+                    enhancement_result = self.narrative_enhancer.enhance_narrative(
+                        content, self.enhancement_settings
+                    )
+                    
+                    # Use enhanced text if validation passed
+                    if enhancement_result["validation_result"].medical_accuracy_preserved:
+                        enhanced_narratives[field_name] = enhancement_result["enhanced_text"]
+                    else:
+                        # Fall back to original if enhancement failed validation
+                        enhanced_narratives[field_name] = content
+                        
+        except Exception as e:
+            # If enhancement fails, log error and return original content
+            logger.warning(f"Narrative enhancement failed: {str(e)}")
+            return narratives
+        
+        return enhanced_narratives
+    
+    def set_enhancement_settings(self, settings: EnhancementSettings) -> None:
+        """
+        Set enhancement settings for narrative processing.
+        
+        Args:
+            settings: New enhancement settings
+        """
+        if self.narrative_enhancer:
+            self.enhancement_settings = settings
+            self.narrative_enhancer.set_enhancement_settings(settings)
+    
+    def enable_narrative_enhancement(self, enable: bool = True) -> None:
+        """
+        Enable or disable narrative enhancement.
+        
+        Args:
+            enable: Whether to enable narrative enhancement
+        """
+        if enable and not self.narrative_enhancer:
+            # Initialize enhancer if not already done
+            self.narrative_enhancer = NarrativeEnhancer()
+            self.enhancement_settings = EnhancementSettings()
+        
+        self.enable_ai_enhancement = enable
