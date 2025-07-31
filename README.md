@@ -22,7 +22,11 @@ This project demonstrates advanced use of **Claude Code specialized sub-agents**
 
 ### Agent Personas
 
+We created specialized Claude Code sub-agents with healthcare domain expertise, defined in the `/agents/` directory:
+
 #### Healthcare Product Owner (`healthcare-product-owner`)
+*Based on `agents/product-owner.md`*
+
 ```bash
 # Specialized for clinical workflows and patient safety
 Task(description="Define user stories", 
@@ -30,13 +34,22 @@ Task(description="Define user stories",
      subagent_type="healthcare-product-owner")
 ```
 
-**Expertise:**
-- Clinical workflow analysis and EHR integration planning
-- Patient safety assessment and regulatory compliance (HIPAA, FDA)
-- User story creation with healthcare-specific acceptance criteria
-- Stakeholder communication between patients, providers, and developers
+**Domain Expertise:**
+- **Clinical Workflows**: EHR systems (EPIC, NextGen, Cerner) integration patterns
+- **Patient Experience**: Health literacy and communication clarity focus
+- **Regulatory Knowledge**: HIPAA, FDA guidelines, patient safety requirements
+- **Data Standards**: FHIR, HL7, clinical terminology (SNOMED, ICD-10)
+- **Quality Metrics**: Patient satisfaction and clinical outcome tracking
+
+**Key Deliverables:**
+- User stories with healthcare-specific acceptance criteria
+- Feature prioritization framework (P0: Safety, P1: Core features, P2: Enhancement)
+- Clinical scenario validation and risk management strategies
+- EHR integration planning and stakeholder communication
 
 #### Healthcare Software Engineer (`healthcare-swe`)
+*Based on `agents/swe.md`*
+
 ```bash
 # Specialized for medical software with TDD approach
 Task(description="Implement TDD framework", 
@@ -44,11 +57,23 @@ Task(description="Implement TDD framework",
      subagent_type="healthcare-swe")
 ```
 
-**Expertise:**
-- Test-Driven Development with healthcare-specific safety testing
-- FHIR R4 compliance and medical data processing
-- AI/ML integration for clinical applications
-- PHI protection and medical software security patterns
+**Technical Expertise:**
+- **Core Technologies**: Python 3.9+, FastAPI, Pydantic, Hugging Face Transformers
+- **Healthcare Standards**: FHIR R4, medical data processing, clinical terminology
+- **AI/ML Integration**: BART models for text summarization with medical accuracy
+- **Safety Architecture**: Fail-safe design, PHI protection, audit logging
+
+**Implementation Areas:**
+- **Hybrid Clinical Processor**: Structured data preservation + AI narrative enhancement
+- **FHIR Data Processing**: R4 resource parsing with validation and error handling  
+- **Safety Testing Framework**: Healthcare-specific test scenarios and validation
+- **Security Patterns**: Input sanitization, PHI protection, regulatory compliance
+
+**Code Quality Standards:**
+- Healthcare-specific code review checklist (safety, accuracy, privacy)
+- Type safety with Pydantic medical data models
+- Comprehensive error handling for clinical processing failures
+- Documentation standards explaining medical decisions and safety rationale
 
 ### Sub-Agent Collaboration Workflow
 
