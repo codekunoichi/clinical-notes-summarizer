@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="{{ formatting_preferences.language[:2] or 'en' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="description" content="Patient-friendly health summary for easy reference">
+    <title>Your Health Summary</title>
+    
+    <style>
+        /* WCAG 2.1 AA Compliant CSS for Healthcare */
+        
+        /* Reset and Base Styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        :root {
+            /* Color Palette - Colorblind Friendly & High Contrast */
+            --primary-color: #2563eb;      /* Blue - safe for colorblind */
+            --secondary-color: #059669;    /* Green - safe for colorblind */
+            --warning-color: #dc2626;      /* Red - high contrast */
+            --neutral-dark: #1f2937;       /* Dark gray */
+            --neutral-medium: #6b7280;     /* Medium gray */
+            --neutral-light: #f9fafb;      /* Light gray */
+            --white: #ffffff;
+            
+            /* Typography Scale */
+            --font-size-xs: 0.75rem;      /* 12px */
+            --font-size-sm: 0.875rem;     /* 14px */
+            --font-size-base: 1rem;       /* 16px - WCAG minimum */
+            --font-size-lg: 1.125rem;     /* 18px */
+            --font-size-xl: 1.25rem;      /* 20px */
+            --font-size-2xl: 1.5rem;      /* 24px */
+            --font-size-3xl: 1.875rem;    /* 30px */
+            
+            /* Spacing Scale */
+            --space-xs: 0.25rem;  /* 4px */
+            --space-sm: 0.5rem;   /* 8px */
+            --space-md: 1rem;     /* 16px */
+            --space-lg: 1.5rem;   /* 24px */
+            --space-xl: 2rem;     /* 32px */
+            --space-2xl: 3rem;    /* 48px */
+            
+            /* Line Heights for Readability */
+            --line-height-tight: 1.25;
+            --line-height-normal: 1.5;
+            --line-height-relaxed: 1.75;
+        }
+        
+        /* Base Typography */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: var(--font-size-base);
+            line-height: var(--line-height-normal);
+            color: var(--neutral-dark);
+            background-color: var(--white);
+            
+            {% if accessibility_settings.large_fonts %}
+            font-size: var(--font-size-lg);
+            {% endif %}
+        }
+        
+        /* Skip Link for Screen Readers */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 6px;
+            background: var(--primary-color);
+            color: white;
+            padding: 8px;
+            text-decoration: none;
+            z-index: 1000;
+            border-radius: 4px;
+        }
+        
+        .skip-link:focus {
+            top: 6px;
+        }
+        
+        /* Main Container */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--space-md);
+            
+            {% if formatting_preferences.compact_layout %}
+            padding: var(--space-sm);
+            {% endif %}
+        }
+        
+        /* Page Header */
+        .page-header {
+            text-align: center;
+            margin-bottom: var(--space-2xl);
+            padding-bottom: var(--space-lg);
+            border-bottom: 2px solid var(--primary-color);
+        }
+        
+        .page-title {
+            font-size: var(--font-size-3xl);
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: var(--space-sm);
+        }
+        
+        .page-subtitle {
+            font-size: var(--font-size-lg);
+            color: var(--neutral-medium);
+            font-weight: 400;
+        }
+        
+        /* Section Styling */
+        .section {
+            margin-bottom: var(--space-2xl);
+            padding: var(--space-lg);
+            background: var(--white);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            
+            {% if not formatting_preferences.compact_layout %}
+            padding: var(--space-xl);
+            {% endif %}
+        }
+        
+        /* Critical Sections - High Priority */
+        .section.critical {
+            border-color: var(--warning-color);
+            background: linear-gradient(to right, #fef2f2, var(--white));
+        }
+        
+        .section.priority-1,
+        .section.priority-2,
+        .section.priority-3 {
+            border-color: var(--primary-color);
+            background: linear-gradient(to right, #eff6ff, var(--white));
+        }
+        
+        /* Section Headers */
+        .section-title {
+            font-size: var(--font-size-2xl);
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: var(--space-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .section.critical .section-title {
+            color: var(--warning-color);
+        }
+        
+        /* Icons */
+        .section-icon {
+            width: 1.5em;
+            height: 1.5em;
+            flex-shrink: 0;
+        }
+        
+        /* Emergency Section - Special Styling */
+        .emergency-section {
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
+            border: 3px solid var(--warning-color);
+            border-radius: 12px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .emergency-section::before {
+            content: "⚠️";
+            font-size: var(--font-size-3xl);
+            display: block;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .emergency-text {
+            font-size: var(--font-size-xl);
+            font-weight: 700;
+            color: var(--warning-color);
+        }
+        
+        /* Medication Styling */
+        .medication-item {
+            background: var(--neutral-light);
+            padding: var(--space-lg);
+            border-radius: 6px;
+            margin-bottom: var(--space-md);
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .medication-name {
+            font-size: var(--font-size-xl);
+            font-weight: 600;
+            color: var(--neutral-dark);
+            margin-bottom: var(--space-sm);
+        }
+        
+        .medication-details {
+            margin-bottom: var(--space-sm);
+        }
+        
+        .medication-details strong {
+            color: var(--primary-color);
+            display: inline-block;
+            min-width: 100px;
+        }
+        
+        .medication-purpose,
+        .medication-notes {
+            background: var(--white);
+            padding: var(--space-md);
+            border-radius: 4px;
+            margin-top: var(--space-sm);
+            border-left: 3px solid var(--secondary-color);
+        }
+        
+        .medication-notes {
+            border-left-color: var(--warning-color);
+        }
+        
+        /* Appointment Styling */
+        .appointment-item {
+            background: linear-gradient(to right, #f0f9ff, var(--white));
+            padding: var(--space-lg);
+            border-radius: 6px;
+            border: 2px solid var(--primary-color);
+        }
+        
+        .appointment-datetime {
+            font-size: var(--font-size-xl);
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: var(--space-md);
+        }
+        
+        .appointment-provider,
+        .appointment-location,
+        .appointment-phone {
+            margin-bottom: var(--space-sm);
+        }
+        
+        .appointment-provider strong,
+        .appointment-location strong,
+        .appointment-phone strong {
+            color: var(--neutral-dark);
+            display: inline-block;
+            min-width: 80px;
+        }
+        
+        /* Lab Results Styling */
+        .lab-item {
+            background: var(--neutral-light);
+            padding: var(--space-lg);
+            border-radius: 6px;
+            margin-bottom: var(--space-md);
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .lab-name {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            color: var(--neutral-dark);
+            margin-bottom: var(--space-sm);
+        }
+        
+        .lab-value strong {
+            color: var(--primary-color);
+        }
+        
+        .lab-explanation {
+            background: var(--white);
+            padding: var(--space-md);
+            border-radius: 4px;
+            margin-top: var(--space-sm);
+            font-style: italic;
+        }
+        
+        /* Care Instructions */
+        .care-instructions,
+        .followup-guidance {
+            background: linear-gradient(to right, #f0fdf4, var(--white));
+            padding: var(--space-lg);
+            border-radius: 6px;
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        /* Disclaimers */
+        .disclaimer {
+            background: var(--neutral-light);
+            padding: var(--space-md);
+            border-radius: 4px;
+            margin-bottom: var(--space-sm);
+            font-size: var(--font-size-sm);
+            color: var(--neutral-medium);
+            border-left: 3px solid var(--neutral-medium);
+        }
+        
+        /* Critical Information Highlighting */
+        .critical-info {
+            background: linear-gradient(120deg, #fef2f2, #fee2e2);
+            color: var(--warning-color);
+            font-weight: 600;
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: 4px;
+            border: 1px solid var(--warning-color);
+        }
+        
+        /* Responsive Design - Mobile First */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-sm);
+            }
+            
+            .section {
+                padding: var(--space-md);
+                margin-bottom: var(--space-lg);
+            }
+            
+            .section-title {
+                font-size: var(--font-size-xl);
+            }
+            
+            .page-title {
+                font-size: var(--font-size-2xl);
+            }
+            
+            .medication-details strong,
+            .appointment-provider strong,
+            .appointment-location strong,
+            .appointment-phone strong {
+                min-width: auto;
+                display: block;
+                margin-bottom: var(--space-xs);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: var(--space-xs);
+            }
+            
+            .section {
+                padding: var(--space-sm);
+            }
+            
+            .medication-item,
+            .appointment-item,
+            .lab-item {
+                padding: var(--space-md);
+            }
+        }
+        
+        /* Print Styles - Fridge Magnet Optimized */
+        @media print {
+            @page {
+                size: {{ print_settings.page_size }};
+                margin: {{ print_settings.margins.top }} {{ print_settings.margins.right }} {{ print_settings.margins.bottom }} {{ print_settings.margins.left }};
+            }
+            
+            body {
+                font-size: {{ print_settings.font_size_base }};
+                line-height: {{ print_settings.line_height }};
+                color: black;
+                background: white;
+            }
+            
+            .container {
+                max-width: none;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .section {
+                {% if print_settings.page_breaks %}
+                break-inside: avoid;
+                page-break-inside: avoid;
+                {% endif %}
+                
+                box-shadow: none;
+                border: 2px solid #000;
+                margin-bottom: 1rem;
+                
+                {% if not print_settings.print_background %}
+                background: white !important;
+                {% endif %}
+            }
+            
+            .section-title {
+                font-size: {{ print_settings.font_size_headers }};
+                color: black;
+            }
+            
+            .emergency-section {
+                border: 4px solid black;
+                background: white;
+            }
+            
+            .critical-info {
+                background: white;
+                border: 2px solid black;
+                color: black;
+            }
+            
+            /* Ensure critical information is prominent */
+            .section.critical {
+                border: 3px solid black;
+            }
+            
+            /* Hide interactive elements in print */
+            .skip-link {
+                display: none;
+            }
+        }
+        
+        /* High Contrast Mode */
+        {% if accessibility_settings.high_contrast %}
+        :root {
+            --primary-color: #000080;
+            --secondary-color: #008000;
+            --warning-color: #ff0000;
+            --neutral-dark: #000000;
+            --neutral-medium: #333333;
+            --neutral-light: #ffffff;
+            --white: #ffffff;
+        }
+        
+        .section {
+            border: 3px solid var(--neutral-dark);
+        }
+        
+        .medication-item,
+        .appointment-item, 
+        .lab-item {
+            border: 2px solid var(--neutral-dark);
+        }
+        {% endif %}
+        
+        /* Focus Indicators for Keyboard Navigation */
+        {% if accessibility_settings.keyboard_navigation %}
+        .section:focus-within {
+            outline: 3px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+        
+        button:focus,
+        a:focus {
+            outline: 3px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+        {% endif %}
+        
+        /* Screen Reader Optimizations */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        
+        /* Age Group Specific Adjustments */
+        {% if formatting_preferences.patient_age_group == 'geriatric' %}
+        body {
+            font-size: var(--font-size-lg);
+        }
+        
+        .section-title {
+            font-size: var(--font-size-3xl);
+        }
+        
+        .medication-name {
+            font-size: var(--font-size-2xl);
+        }
+        
+        .section {
+            padding: var(--space-xl);
+            margin-bottom: var(--space-2xl);
+        }
+        {% endif %}
+        
+        {% if formatting_preferences.patient_age_group == 'pediatric' %}
+        .section {
+            border-radius: 12px;
+        }
+        
+        .medication-item,
+        .appointment-item,
+        .lab-item {
+            border-radius: 8px;
+        }
+        {% endif %}
+    </style>
+</head>
+
+<body>
+    <!-- Skip Link for Screen Readers -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <div class="container">
+        <!-- Page Header -->
+        <header class="page-header" role="banner">
+            <h1 class="page-title">Your Health Summary</h1>
+            <p class="page-subtitle">
+                Easy-to-read information about your health
+                {% if summary.patient_id != 'unknown' %}
+                (Patient ID: {{ summary.patient_id }})
+                {% endif %}
+            </p>
+        </header>
+        
+        <!-- Main Content -->
+        <main id="main-content" role="main">
+            {% for section in sections %}
+            <section class="section 
+                {% if section.critical %}critical{% endif %}
+                priority-{{ section.priority }}"
+                
+                {% if accessibility_settings.aria_labels %}
+                aria-labelledby="section-title-{{ section.section_id }}"
+                role="region"
+                {% endif %}>
+                
+                <h2 id="section-title-{{ section.section_id }}" class="section-title">
+                    {% if section.section_type == 'emergency' %}
+                        <span class="section-icon" aria-hidden="true">🚨</span>
+                    {% elif section.section_type == 'medication' %}
+                        <span class="section-icon" aria-hidden="true">💊</span>
+                    {% elif section.section_type == 'appointment' %}
+                        <span class="section-icon" aria-hidden="true">📅</span>
+                    {% elif section.section_type == 'lab' %}
+                        <span class="section-icon" aria-hidden="true">🔬</span>
+                    {% elif section.section_type == 'instructions' %}
+                        <span class="section-icon" aria-hidden="true">📋</span>
+                    {% elif section.section_type == 'guidance' %}
+                        <span class="section-icon" aria-hidden="true">📞</span>
+                    {% elif section.section_type == 'legal' %}
+                        <span class="section-icon" aria-hidden="true">ℹ️</span>
+                    {% endif %}
+                    
+                    {{ section.title }}
+                    
+                    {% if section.critical %}
+                    <span class="sr-only">This is critical information</span>
+                    {% endif %}
+                </h2>
+                
+                <!-- Special handling for emergency section -->
+                {% if section.section_type == 'emergency' %}
+                <div class="emergency-section">
+                    <div class="emergency-text" role="alert" aria-live="assertive">
+                        {{ section.content|safe }}
+                    </div>
+                </div>
+                {% else %}
+                <div class="section-content">
+                    {{ section.content|safe }}
+                </div>
+                {% endif %}
+            </section>
+            {% endfor %}
+        </main>
+        
+        <!-- Footer with Generation Info -->
+        <footer role="contentinfo" class="page-footer">
+            <p class="disclaimer">
+                <strong>Generated:</strong> {{ generated_at.strftime('%B %d, %Y at %I:%M %p UTC') }}<br>
+                <strong>Formatter Version:</strong> {{ formatter_version }}
+            </p>
+            
+            {% if accessibility_settings.wcag_level %}
+            <p class="accessibility-note">
+                <span class="sr-only">Accessibility: </span>
+                This document meets WCAG {{ accessibility_settings.wcag_level }} accessibility standards
+            </p>
+            {% endif %}
+        </footer>
+    </div>
+    
+    <!-- Structured Data for Search Engines and Assistive Technology -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "MedicalRecord",
+        "name": "Patient Health Summary",
+        "dateCreated": "{{ generated_at.isoformat() }}",
+        "about": {
+            "@type": "Patient",
+            "identifier": "{{ summary.patient_id }}"
+        },
+        "description": "Patient-friendly clinical summary for easy reference"
+    }
+    </script>
+</body>
+</html>
