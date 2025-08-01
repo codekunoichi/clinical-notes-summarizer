@@ -1,0 +1,180 @@
+# Prometheus Configuration for Clinical Notes Summarizer
+# Healthcare-compliant monitoring and alerting
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  # Ensure no PHI in metrics labels
+  external_labels:
+    environment: 'clinical-production'
+    service: 'clinical-notes-summarizer'
+    compliance: 'healthcare'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # Add your alertmanager targets here
+          # - alertmanager:9093
+
+# Rules for healthcare-specific alerts
+rule_files:
+  - "healthcare_alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Clinical Notes Summarizer API monitoring
+  - job_name: 'clinical-api'
+    static_configs:
+      - targets: ['clinical-api:8000']
+    
+    metrics_path: '/api/v1/health'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    
+    # Healthcare-specific metric relabeling
+    metric_relabel_configs:
+      # Ensure no PHI in metric labels
+      - source_labels: [__name__]
+        regex: '.*phi.*|.*patient.*|.*ssn.*|.*dob.*'
+        action: drop
+      
+      # Add healthcare compliance labels
+      - target_label: healthcare_service
+        replacement: 'clinical-summarizer'
+      
+      - target_label: fhir_version
+        replacement: 'R4'
+    
+    # Honor labels from the service
+    honor_labels: true
+    
+    # Healthcare service discovery labels
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: clinical-api:8000
+
+  # System metrics for healthcare compliance monitoring
+  - job_name: 'clinical-system'
+    static_configs:
+      - targets: ['clinical-api:8000']
+    
+    metrics_path: '/api/v1/health'
+    scrape_interval: 60s
+    
+    # System resource monitoring
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'system_memory_.*|system_cpu_.*|system_disk_.*'
+        target_label: metric_type
+        replacement: 'system_resource'
+
+  # Self-monitoring of Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    
+    scrape_interval: 60s
+    
+    # Prometheus self-monitoring with healthcare context
+    metric_relabel_configs:
+      - target_label: service_type
+        replacement: 'healthcare_monitoring'
+
+# Healthcare-specific recording rules
+recording_rules:
+  - name: clinical_api_health
+    rules:
+      # API availability over time
+      - record: clinical:api_availability_5m
+        expr: avg_over_time(up{job="clinical-api"}[5m])
+      
+      # Response time percentiles
+      - record: clinical:response_time_p95_5m
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="clinical-api"}[5m]))
+      
+      # Error rate for healthcare monitoring
+      - record: clinical:error_rate_5m
+        expr: rate(http_requests_total{job="clinical-api",status!~"2.."}[5m]) / rate(http_requests_total{job="clinical-api"}[5m])
+      
+      # Healthcare compliance metrics
+      - record: clinical:phi_protection_enabled
+        expr: clinical_phi_protection_enabled{job="clinical-api"}
+      
+      - record: clinical:processing_time_compliance
+        expr: clinical_max_processing_time_seconds{job="clinical-api"} <= 5.0
+
+# Healthcare alerting rules (basic examples)
+alerting_rules:
+  - name: clinical_health_alerts
+    rules:
+      # Critical: API is down
+      - alert: ClinicalAPIDown
+        expr: up{job="clinical-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          healthcare: true
+        annotations:
+          summary: "Clinical Notes Summarizer API is down"
+          description: "The clinical API has been down for more than 1 minute"
+      
+      # Warning: High response time
+      - alert: ClinicalAPISlowResponse
+        expr: clinical:response_time_p95_5m > 5.0
+        for: 2m
+        labels:
+          severity: warning
+          healthcare: true
+        annotations:
+          summary: "Clinical API response time exceeds healthcare standards"
+          description: "95th percentile response time is {{ $value }}s, exceeding 5s healthcare requirement"
+      
+      # Critical: High error rate
+      - alert: ClinicalAPIHighErrorRate
+        expr: clinical:error_rate_5m > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          healthcare: true
+        annotations:
+          summary: "High error rate in Clinical API"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+      
+      # Critical: PHI protection disabled
+      - alert: ClinicalPHIProtectionDisabled
+        expr: clinical:phi_protection_enabled == 0
+        for: 0m
+        labels:
+          severity: critical
+          healthcare: true
+          compliance_violation: true
+        annotations:
+          summary: "CRITICAL: PHI protection is disabled"
+          description: "PHI protection has been disabled, this is a compliance violation"
+      
+      # Warning: Processing time exceeds standards
+      - alert: ClinicalProcessingTimeExceeded
+        expr: clinical:processing_time_compliance == 0
+        for: 1m
+        labels:
+          severity: warning
+          healthcare: true
+        annotations:
+          summary: "Processing time exceeds healthcare standards"
+          description: "Maximum processing time is configured above 5 second healthcare requirement"
+
+# Healthcare monitoring best practices
+# 1. No PHI in metrics or logs
+# 2. Monitor compliance-critical settings
+# 3. Alert on healthcare standard violations
+# 4. Track performance against clinical requirements
+# 5. Maintain audit trails for monitoring access
+# 6. Regular review of monitoring configurations
+# 7. Secure monitoring infrastructure
+# 8. Integration with healthcare incident response

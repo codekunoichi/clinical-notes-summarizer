@@ -1,0 +1,202 @@
+# Clinical Notes Summarizer - Production Docker Compose
+# Healthcare-compliant deployment configuration
+
+version: '3.8'
+
+services:
+  clinical-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: clinical-notes-api
+    restart: unless-stopped
+    
+    # Healthcare Security: Resource limits to prevent resource exhaustion
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    
+    # Healthcare Environment Configuration
+    environment:
+      # Production Environment
+      - CLINICAL_ENVIRONMENT=production
+      - CLINICAL_DEBUG=false
+      - CLINICAL_HOST=0.0.0.0
+      - CLINICAL_PORT=8000
+      
+      # Healthcare Security
+      - CLINICAL_ENABLE_PHI_PROTECTION=true
+      - CLINICAL_ENABLE_REQUEST_LOGGING=false
+      - CLINICAL_LOG_LEVEL=INFO
+      
+      # Rate Limiting and Performance
+      - CLINICAL_RATE_LIMIT_PER_MINUTE=120
+      - CLINICAL_MAX_PROCESSING_TIME_SECONDS=5.0
+      - CLINICAL_MAX_REQUEST_SIZE_MB=10
+      
+      # FHIR Compliance
+      - CLINICAL_FHIR_VERSION=R4
+      
+      # Security Headers and CORS
+      - CLINICAL_ALLOWED_HOSTS=localhost,127.0.0.1,clinical-api
+      - CLINICAL_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
+    
+    # Healthcare Compliance: No PHI data volumes - only logs and cache
+    volumes:
+      - clinical_logs:/app/logs:rw
+      - clinical_cache:/app/cache:rw
+      - clinical_temp:/app/temp:rw
+    
+    # Network configuration for security
+    ports:
+      - "8000:8000"
+    networks:
+      - clinical_network
+    
+    # Healthcare Monitoring: Comprehensive health checks
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Dependency management
+    depends_on:
+      - clinical-monitoring
+    
+    # Security: Drop unnecessary capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    
+    # Healthcare Security: Read-only root filesystem (except for specified volumes)
+    read_only: true
+    
+    # Security: No new privileges
+    security_opt:
+      - no-new-privileges:true
+    
+    # Logging configuration for healthcare compliance
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=clinical-api,healthcare=true"
+
+  # Monitoring and observability service
+  clinical-monitoring:
+    image: prom/prometheus:latest
+    container_name: clinical-monitoring
+    restart: unless-stopped
+    
+    # Monitoring configuration
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=7d'
+    
+    volumes:
+      - ./docker/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    
+    ports:
+      - "9090:9090"
+    networks:
+      - clinical_network
+    
+    # Healthcare Compliance: Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    
+    # Security
+    user: "nobody"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
+  # Log aggregation for healthcare audit trails
+  clinical-logs:
+    image: fluent/fluent-bit:latest
+    container_name: clinical-log-aggregator
+    restart: unless-stopped
+    
+    volumes:
+      - ./docker/logging/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - clinical_logs:/var/log/clinical:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    
+    networks:
+      - clinical_network
+    
+    # Healthcare Security: Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    
+    # Security
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
+# Healthcare Compliance: Named volumes for data persistence (no PHI)
+volumes:
+  clinical_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/logs
+  
+  clinical_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/cache
+  
+  clinical_temp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/temp
+  
+  prometheus_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/prometheus
+
+# Secure network for healthcare services
+networks:
+  clinical_network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: clinical-bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

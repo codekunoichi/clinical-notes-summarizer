@@ -1,0 +1,232 @@
+# Clinical Notes Summarizer - Development Docker Compose Override
+# Extended configuration for development and testing environments
+
+version: '3.8'
+
+services:
+  clinical-api:
+    # Development-specific build configuration
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production  # Still use production target for consistency
+      args:
+        - DEVELOPMENT_MODE=true
+    
+    # Development environment variables
+    environment:
+      - CLINICAL_ENVIRONMENT=development
+      - CLINICAL_DEBUG=true
+      - CLINICAL_LOG_LEVEL=DEBUG
+      - CLINICAL_ENABLE_DEBUG_ENDPOINTS=true
+      - CLINICAL_ENABLE_TEST_DATA=true
+      - CLINICAL_RELOAD_ON_CHANGES=true
+      - CLINICAL_RATE_LIMIT_PER_MINUTE=300
+      - CLINICAL_MAX_PROCESSING_TIME_SECONDS=10.0
+      - CLINICAL_MAX_REQUEST_SIZE_MB=50
+    
+    # Development volumes for live code editing
+    volumes:
+      - clinical_logs:/app/logs:rw
+      - clinical_cache:/app/cache:rw
+      - clinical_temp:/app/temp:rw
+      # Mount source code for development (be careful with PHI protection)
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./requirements.txt:/app/requirements.txt:ro
+    
+    # Development port mapping (more permissive)
+    ports:
+      - "8000:8000"
+      - "8001:8001"  # Additional port for development tools
+    
+    # Development command with auto-reload
+    command: >
+      sh -c "
+        python -c 'import uvicorn; uvicorn.run(
+          \"src.api.main:app\", 
+          host=\"0.0.0.0\", 
+          port=8000, 
+          reload=True, 
+          reload_dirs=[\"/app/src\"], 
+          log_level=\"debug\",
+          access_log=True
+        )'
+      "
+    
+    # Relaxed security for development
+    read_only: false
+    
+    # Development health check (more frequent)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Development database for testing (if needed)
+  clinical-dev-db:
+    image: postgres:15-alpine
+    container_name: clinical-dev-database
+    restart: unless-stopped
+    
+    environment:
+      - POSTGRES_DB=clinical_test
+      - POSTGRES_USER=clinical_dev
+      - POSTGRES_PASSWORD=clinical_dev_password_change_in_production
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    
+    volumes:
+      - clinical_dev_db:/var/lib/postgresql/data
+      - ./docker/database/init-dev.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    
+    ports:
+      - "5432:5432"
+    
+    networks:
+      - clinical_network
+    
+    # Development resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    
+    # Basic health check
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinical_dev -d clinical_test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Development Redis for caching (if needed)
+  clinical-dev-cache:
+    image: redis:7-alpine
+    container_name: clinical-dev-cache
+    restart: unless-stopped
+    
+    command: redis-server --appendonly yes --requirepass clinical_dev_redis_password
+    
+    volumes:
+      - clinical_dev_cache:/data
+    
+    ports:
+      - "6379:6379"
+    
+    networks:
+      - clinical_network
+    
+    # Development resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    
+    # Redis health check
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Development documentation server
+  clinical-docs:
+    image: nginx:alpine
+    container_name: clinical-docs-server
+    restart: unless-stopped
+    
+    volumes:
+      - ./docs:/usr/share/nginx/html:ro
+      - ./docker/nginx/docs.conf:/etc/nginx/conf.d/default.conf:ro
+    
+    ports:
+      - "8080:80"
+    
+    networks:
+      - clinical_network
+    
+    depends_on:
+      - clinical-api
+
+  # Development test runner
+  clinical-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: clinical-test-runner
+    
+    environment:
+      - CLINICAL_ENVIRONMENT=testing
+      - CLINICAL_DEBUG=true
+      - CLINICAL_ENABLE_PHI_PROTECTION=true  # Always enabled, even in tests
+      - PYTHONPATH=/app
+    
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./pytest.ini:/app/pytest.ini:ro
+      - clinical_test_reports:/app/test-reports:rw
+    
+    networks:
+      - clinical_network
+    
+    depends_on:
+      - clinical-dev-db
+      - clinical-dev-cache
+    
+    # Run tests and exit
+    command: >
+      sh -c "
+        echo 'Running healthcare compliance tests...' &&
+        python -m pytest tests/ -v --cov=src --cov-report=html:/app/test-reports/coverage --cov-report=term &&
+        echo 'Healthcare compliance tests completed'
+      "
+    
+    # Don't restart test container
+    restart: "no"
+
+# Development-specific volumes
+volumes:
+  clinical_dev_db:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/dev-db
+  
+  clinical_dev_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/dev-cache
+  
+  clinical_test_reports:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/test-reports
+
+# Development network with different subnet
+networks:
+  clinical_network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: clinical-dev-bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+# Development-specific service extensions
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d

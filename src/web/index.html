@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Clinical Notes Summarizer - Demo Interface for Healthcare Data Processing">
+    <title>Clinical Notes Summarizer - Demo Interface</title>
+    
+    <!-- External Dependencies -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/css/demo.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏥%3C/text%3E%3C/svg%3E">
+</head>
+
+<body>
+    <!-- Skip Link for Accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo-section">
+                    <span class="logo-icon" aria-hidden="true">🏥</span>
+                    <h1 class="logo-text">Clinical Notes Summarizer</h1>
+                </div>
+                <div class="header-subtitle">
+                    <p>Transform clinical data into patient-friendly "fridge magnet" summaries</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Safety Disclaimer Banner -->
+    <div class="safety-banner" role="alert" aria-live="polite">
+        <div class="container">
+            <div class="safety-content">
+                <span class="safety-icon" aria-hidden="true">⚠️</span>
+                <div class="safety-text">
+                    <strong>Educational Demo Only:</strong> This system is for demonstration purposes only. 
+                    Not for use with real patient data. Always consult healthcare providers for medical decisions.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main id="main-content" class="main" role="main">
+        <div class="container">
+            
+            <!-- Demo Introduction -->
+            <section class="intro-section">
+                <h2>Healthcare AI Demo</h2>
+                <div class="intro-grid">
+                    <div class="intro-card">
+                        <div class="intro-icon">🔒</div>
+                        <h3>Safety First</h3>
+                        <p>Critical data (medications, lab values, vital signs) is preserved exactly. AI only enhances explanations.</p>
+                    </div>
+                    <div class="intro-card">
+                        <div class="intro-icon">📱</div>
+                        <h3>Fridge Magnet Format</h3>
+                        <p>Mobile-responsive, scannable summaries designed for easy printing and quick reference.</p>
+                    </div>
+                    <div class="intro-card">
+                        <div class="intro-icon">⚡</div>
+                        <h3>FHIR Compliant</h3>
+                        <p>Works with standard healthcare data formats. Processes data in under 5 seconds.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Demo Interface -->
+            <section class="demo-section">
+                <div class="demo-container">
+                    
+                    <!-- Input Panel -->
+                    <div class="input-panel">
+                        <div class="panel-header">
+                            <h2>Input Clinical Data</h2>
+                            <div class="panel-controls">
+                                <select id="demo-scenario" class="scenario-selector" aria-label="Select demo scenario">
+                                    <option value="">Choose a demo scenario...</option>
+                                    <option value="diabetes">Diabetes Management</option>
+                                    <option value="pediatric-asthma">Pediatric Asthma</option>
+                                    <option value="geriatric-polypharmacy">Geriatric Polypharmacy</option>
+                                    <option value="psychiatric">Psychiatric Medications</option>
+                                    <option value="custom">Custom FHIR Bundle</option>
+                                </select>
+                                <button id="load-scenario-btn" class="btn btn-secondary" disabled>Load Scenario</button>
+                            </div>
+                        </div>
+                        
+                        <div class="input-area">
+                            <textarea id="fhir-input" 
+                                      class="fhir-textarea" 
+                                      placeholder="Paste FHIR Bundle JSON here or select a demo scenario above..."
+                                      aria-label="FHIR Bundle JSON input"
+                                      spellcheck="false"></textarea>
+                            
+                            <div class="input-controls">
+                                <button id="validate-btn" class="btn btn-outline">
+                                    <span class="btn-icon">✓</span>
+                                    Validate Bundle
+                                </button>
+                                <button id="process-btn" class="btn btn-primary" disabled>
+                                    <span class="btn-icon">⚡</span>
+                                    Process Summary
+                                </button>
+                                <button id="clear-btn" class="btn btn-outline">
+                                    <span class="btn-icon">🗑️</span>
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Validation Results -->
+                        <div id="validation-results" class="validation-panel" style="display: none;">
+                            <div class="validation-header">
+                                <h3>Validation Results</h3>
+                                <span id="validation-status" class="status-badge"></span>
+                            </div>
+                            <div id="validation-content" class="validation-content"></div>
+                        </div>
+                    </div>
+
+                    <!-- Output Panel -->
+                    <div class="output-panel">
+                        <div class="panel-header">
+                            <h2>Patient-Friendly Summary</h2>
+                            <div class="output-controls">
+                                <div class="format-selector">
+                                    <label for="output-format">Format:</label>
+                                    <select id="output-format" aria-label="Select output format">
+                                        <option value="html">HTML (Web View)</option>
+                                        <option value="pdf">PDF (Print Ready)</option>
+                                        <option value="plain_text">Plain Text</option>
+                                        <option value="json">Structured JSON</option>
+                                    </select>
+                                </div>
+                                <button id="download-btn" class="btn btn-secondary" disabled>
+                                    <span class="btn-icon">📥</span>
+                                    Download
+                                </button>
+                                <button id="print-btn" class="btn btn-secondary" disabled>
+                                    <span class="btn-icon">🖨️</span>
+                                    Print
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Processing Status -->
+                        <div id="processing-status" class="processing-status" style="display: none;">
+                            <div class="spinner" aria-hidden="true"></div>
+                            <span class="status-text">Processing clinical data...</span>
+                        </div>
+                        
+                        <!-- Output Area -->
+                        <div id="output-area" class="output-area" style="display: none;">
+                            <div id="output-content" class="output-content"></div>
+                            
+                            <!-- Processing Metadata -->
+                            <div id="processing-metadata" class="metadata-panel">
+                                <div class="metadata-header">
+                                    <h3>Processing Information</h3>
+                                    <button id="toggle-metadata" class="btn-icon" aria-label="Toggle metadata visibility">
+                                        <span class="chevron">▼</span>
+                                    </button>
+                                </div>
+                                <div id="metadata-content" class="metadata-content"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error Display -->
+                        <div id="error-display" class="error-panel" style="display: none;">
+                            <div class="error-header">
+                                <span class="error-icon">❌</span>
+                                <h3>Processing Error</h3>
+                            </div>
+                            <div id="error-content" class="error-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- API Information -->
+            <section class="api-section">
+                <div class="api-container">
+                    <h2>API Information</h2>
+                    <div class="api-grid">
+                        <div class="api-card">
+                            <h3>Available Endpoints</h3>
+                            <ul class="endpoint-list">
+                                <li><code>POST /api/v1/summarize</code> - Process clinical summary</li>
+                                <li><code>POST /api/v1/summarize/validate-only</code> - Validate FHIR bundle</li>
+                                <li><code>GET /api/v1/health</code> - Health check</li>
+                                <li><code>GET /docs</code> - Interactive API documentation</li>
+                            </ul>
+                        </div>
+                        <div class="api-card">
+                            <h3>Safety Features</h3>
+                            <ul class="feature-list">
+                                <li>Zero PHI storage or logging</li>
+                                <li>Critical data preservation (never AI-processed)</li>
+                                <li>FHIR R4 compliance</li>
+                                <li>Rate limiting and input validation</li>
+                                <li>&lt;5 second processing requirement</li>
+                            </ul>
+                        </div>
+                        <div class="api-card">
+                            <h3>Integration Ready</h3>
+                            <ul class="integration-list">
+                                <li>EPIC MyChart compatible</li>
+                                <li>NextGen patient portal ready</li>
+                                <li>Standard REST API design</li>
+                                <li>Docker deployment ready</li>
+                                <li>MIT licensed open source</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>Clinical Notes Summarizer</h3>
+                    <p>Healthcare AI that prioritizes patient safety and data accuracy.</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Important Disclaimers</h3>
+                    <ul>
+                        <li>Educational purposes only</li>
+                        <li>Not a substitute for medical advice</li>
+                        <li>Always consult healthcare providers</li>
+                        <li>No real PHI should be used in this demo</li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>Technical Details</h3>
+                    <ul>
+                        <li>FHIR R4 compliant</li>
+                        <li>FastAPI backend</li>
+                        <li>AI-enhanced narratives only</li>
+                        <li>Critical data preserved exactly</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Clinical Notes Summarizer. Released under MIT License.</p>
+                <div class="footer-links">
+                    <a href="/docs" target="_blank" rel="noopener">API Docs</a>
+                    <a href="/api/v1/health" target="_blank" rel="noopener">Health Check</a>
+                    <span class="api-status" id="api-status">Checking API...</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="static/js/demo-scenarios.js"></script>
+    <script src="static/js/demo-interface.js"></script>
+    
+    <!-- Initialize Demo -->
+    <script>
+        // Initialize the demo interface when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            DemoInterface.init();
+        });
+    </script>
+</body>
+</html>

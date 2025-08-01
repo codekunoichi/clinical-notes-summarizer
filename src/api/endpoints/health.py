@@ -281,3 +281,173 @@ async def liveness_check():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Service not alive"
         )
+
+
+@router.get("/health/startup")
+async def startup_check():
+    """
+    Container startup probe for healthcare environments.
+    
+    Validates that all critical healthcare components are properly initialized
+    before the container is marked as ready to receive traffic.
+    
+    Returns 200 when all startup requirements are met, 503 otherwise.
+    """
+    try:
+        startup_checks = {}
+        
+        # Check core processing components
+        try:
+            from src.summarizer.hybrid_processor import HybridClinicalProcessor
+            processor = HybridClinicalProcessor()
+            startup_checks["hybrid_processor"] = "initialized"
+        except Exception as e:
+            logger.error(f"Hybrid processor startup failed: {type(e).__name__}")
+            startup_checks["hybrid_processor"] = "failed"
+        
+        # Check FHIR parser
+        try:
+            from src.summarizer.fhir_parser import FHIRMedicationParser
+            parser = FHIRMedicationParser()
+            startup_checks["fhir_parser"] = "initialized"
+        except Exception as e:
+            logger.error(f"FHIR parser startup failed: {type(e).__name__}")
+            startup_checks["fhir_parser"] = "failed"
+        
+        # Check patient formatter
+        try:
+            from src.formatter.patient_friendly import PatientFriendlyFormatter
+            formatter = PatientFriendlyFormatter()
+            startup_checks["patient_formatter"] = "initialized"
+        except Exception as e:
+            logger.error(f"Patient formatter startup failed: {type(e).__name__}")
+            startup_checks["patient_formatter"] = "failed"
+        
+        # Check API models
+        try:
+            from src.api.models.fhir_models import OperationOutcome, FHIRBundle
+            startup_checks["api_models"] = "initialized"
+        except Exception as e:
+            logger.error(f"API models startup failed: {type(e).__name__}")
+            startup_checks["api_models"] = "failed"
+        
+        # Check healthcare safety requirements
+        safety_requirements = _check_safety_requirements()
+        failed_safety = [name for name, passed in safety_requirements.items() if not passed]
+        
+        if failed_safety:
+            startup_checks["safety_requirements"] = f"failed: {failed_safety}"
+        else:
+            startup_checks["safety_requirements"] = "validated"
+        
+        # Determine if startup is successful
+        failed_components = [name for name, status in startup_checks.items() 
+                           if status not in ["initialized", "validated"]]
+        
+        if failed_components:
+            logger.error(f"Startup check failed: {failed_components}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "status": "startup_failed",
+                    "failed_components": failed_components,
+                    "checks": startup_checks,
+                    "message": "Service not ready for healthcare operations"
+                }
+            )
+        
+        return {
+            "status": "startup_complete",
+            "timestamp": datetime.utcnow().isoformat(),
+            "components": startup_checks,
+            "healthcare_compliance": "validated",
+            "ready_for_traffic": True
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Startup check error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Startup validation failed"
+        )
+
+
+@router.get("/health/dependencies")
+async def dependencies_check():
+    """
+    Check external dependencies and integrations for healthcare operations.
+    
+    Validates connectivity and functionality of external systems required
+    for healthcare data processing.
+    """
+    try:
+        dependencies = {}
+        
+        # Check AI/ML model availability
+        try:
+            from transformers import pipeline
+            # Test BART model loading (used for narrative enhancement)
+            summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+            dependencies["bart_model"] = "available"
+        except Exception as e:
+            logger.warning(f"BART model check failed: {type(e).__name__}")
+            dependencies["bart_model"] = "unavailable"
+        
+        # Check FHIR resources library
+        try:
+            from fhir.resources.bundle import Bundle
+            from fhir.resources.patient import Patient
+            dependencies["fhir_resources"] = "available"
+        except Exception as e:
+            logger.error(f"FHIR resources check failed: {type(e).__name__}")
+            dependencies["fhir_resources"] = "unavailable"
+        
+        # Check clinical data processing libraries
+        try:
+            import textstat
+            import dateutil.parser
+            dependencies["clinical_processing"] = "available"
+        except Exception as e:
+            logger.error(f"Clinical processing libraries check failed: {type(e).__name__}")
+            dependencies["clinical_processing"] = "unavailable"
+        
+        # Check system resources for healthcare workloads
+        try:
+            memory = psutil.virtual_memory()
+            if memory.available < (1024**3):  # Less than 1GB available
+                dependencies["system_memory"] = "insufficient"
+            else:
+                dependencies["system_memory"] = "sufficient"
+        except Exception as e:
+            logger.error(f"System resources check failed: {type(e).__name__}")
+            dependencies["system_memory"] = "unknown"
+        
+        # Determine overall dependency status
+        critical_deps = ["fhir_resources", "clinical_processing", "system_memory"]
+        failed_critical = [name for name in critical_deps 
+                          if dependencies.get(name) not in ["available", "sufficient"]]
+        
+        if failed_critical:
+            overall_status = "degraded"
+            logger.warning(f"Critical dependencies failed: {failed_critical}")
+        else:
+            overall_status = "healthy"
+        
+        return {
+            "status": overall_status,
+            "timestamp": datetime.utcnow().isoformat(),
+            "dependencies": dependencies,
+            "critical_failures": failed_critical,
+            "healthcare_ready": len(failed_critical) == 0
+        }
+    
+    except Exception as e:
+        logger.error(f"Dependencies check failed: {type(e).__name__}")
+        return {
+            "status": "error",
+            "timestamp": datetime.utcnow().isoformat(),
+            "dependencies": {"check": "failed"},
+            "healthcare_ready": False
+        }

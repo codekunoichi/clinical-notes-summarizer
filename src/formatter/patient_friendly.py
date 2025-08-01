@@ -15,19 +15,6 @@ from datetime import datetime
 from jinja2 import Environment, PackageLoader, select_autoescape, Template
 from markupsafe import Markup
 
-# PDF generation imports (optional)
-PDF_AVAILABLE = False
-try:
-    from weasyprint import HTML, CSS
-    from weasyprint.text.fonts import FontConfiguration
-    PDF_AVAILABLE = True
-except (ImportError, OSError) as e:
-    # WeasyPrint may not be available or may lack system dependencies
-    logger.warning(f"WeasyPrint not available - PDF generation will be limited: {e}")
-    HTML = None
-    CSS = None
-    FontConfiguration = None
-
 from src.models.clinical import ClinicalSummary, MedicationSummary, LabResultSummary, AppointmentSummary
 from .models import (
     FormattedOutput,
@@ -45,6 +32,19 @@ from .models import (
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# PDF generation imports (optional)
+PDF_AVAILABLE = False
+try:
+    from weasyprint import HTML, CSS
+    from weasyprint.text.fonts import FontConfiguration
+    PDF_AVAILABLE = True
+except (ImportError, OSError) as e:
+    # WeasyPrint may not be available or may lack system dependencies
+    logger.warning(f"WeasyPrint not available - PDF generation will be limited: {e}")
+    HTML = None
+    CSS = None
+    FontConfiguration = None
 
 
 class PatientFriendlyFormatter:
@@ -213,10 +213,19 @@ class PatientFriendlyFormatter:
             html_content: HTML content to extract text from
             
         Returns:
-            Plain text content without HTML tags
+            Plain text content without HTML tags, CSS, and JS
         """
+        # Remove CSS style blocks
+        text_content = re.sub(r'<style[^>]*>.*?</style>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove JavaScript
+        text_content = re.sub(r'<script[^>]*>.*?</script>', '', text_content, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove HTML comments
+        text_content = re.sub(r'<!--.*?-->', '', text_content, flags=re.DOTALL)
+        
         # Remove HTML tags
-        text_content = re.sub(r'<[^>]+>', '', html_content)
+        text_content = re.sub(r'<[^>]+>', '', text_content)
         
         # Decode HTML entities
         text_content = html.unescape(text_content)
@@ -288,97 +297,117 @@ class PatientFriendlyFormatter:
     
     def _extract_content_sections(self, clinical_summary: ClinicalSummary) -> List[ContentSection]:
         """
-        Extract and organize content into sections.
+        Extract and organize content into sections matching the mockup design.
         
         Args:
             clinical_summary: Clinical summary to extract from
             
         Returns:
-            List of ContentSection objects
+            List of ContentSection objects matching mockup layout
         """
         sections = []
         
-        # Emergency contact section (always first and critical)
-        emergency_section = ContentSection(
-            section_id="emergency_contact",
-            section_type="emergency",
-            title="In Case of Emergency",
-            content="Call 911 or go to the nearest emergency room immediately",
-            priority=1,
-            critical=True,
-            print_friendly=True
-        )
-        sections.append(emergency_section)
+        # WHY YOU VISITED section (first priority)
+        if clinical_summary.chief_complaint:
+            visit_reason_content = self._format_visit_reason_section(clinical_summary.chief_complaint)
+        else:
+            visit_reason_content = "Routine check-up or follow-up visit"
         
-        # Medications section
+        sections.append(ContentSection(
+            section_id="visit_reason",
+            section_type="visit_reason",
+            title="WHY YOU VISITED",
+            content=visit_reason_content,
+            priority=1,
+            critical=False,
+            print_friendly=True
+        ))
+        
+        # WHAT WE FOUND section (second priority)
+        if clinical_summary.diagnosis_explanation:
+            findings_content = self._format_findings_section(clinical_summary.diagnosis_explanation)
+        else:
+            findings_content = "Assessment and examination results from your visit"
+        
+        sections.append(ContentSection(
+            section_id="findings",
+            section_type="findings",
+            title="WHAT WE FOUND", 
+            content=findings_content,
+            priority=2,
+            critical=False,
+            print_friendly=True
+        ))
+        
+        # YOUR MEDICATIONS section (critical - exact, don't change)
         if clinical_summary.medications:
-            med_content = self._format_medications_section(clinical_summary.medications)
+            med_content = self._format_medications_section_mockup(clinical_summary.medications)
             sections.append(ContentSection(
                 section_id="medications",
                 section_type="medication",
-                title="Your Medications",
+                title="YOUR MEDICATIONS (EXACT - DON'T CHANGE)",
                 content=med_content,
-                priority=2,
-                critical=True,
-                print_friendly=True
-            ))
-        
-        # Next appointment section
-        if clinical_summary.appointments:
-            # Find the next appointment (assume sorted)
-            next_appointment = clinical_summary.appointments[0]
-            appt_content = self._format_next_appointment_section(next_appointment)
-            sections.append(ContentSection(
-                section_id="next_appointment",
-                section_type="appointment",
-                title="Your Next Appointment",
-                content=appt_content,
                 priority=3,
                 critical=True,
                 print_friendly=True
             ))
         
-        # Lab results section
+        # YOUR LAB RESULTS section
         if clinical_summary.lab_results:
-            lab_content = self._format_lab_results_section(clinical_summary.lab_results)
+            lab_content = self._format_lab_results_section_mockup(clinical_summary.lab_results)
             sections.append(ContentSection(
                 section_id="lab_results",
                 section_type="lab",
-                title="Your Test Results",
+                title="YOUR LAB RESULTS",
                 content=lab_content,
                 priority=4,
                 critical=False,
                 print_friendly=True
             ))
         
-        # Care instructions section
-        if clinical_summary.care_instructions:
-            care_content = self._format_care_instructions_section(clinical_summary.care_instructions)
+        # NEXT APPOINTMENT section
+        if clinical_summary.appointments:
+            # Find the next appointment (assume sorted)
+            next_appointment = clinical_summary.appointments[0]
+            appt_content = self._format_next_appointment_section_mockup(next_appointment)
             sections.append(ContentSection(
-                section_id="care_instructions",
-                section_type="instructions",
-                title="Important Care Instructions",
-                content=care_content,
+                section_id="next_appointment",
+                section_type="appointment",
+                title="NEXT APPOINTMENT",
+                content=appt_content,
                 priority=5,
-                critical=False,
+                critical=True,
                 print_friendly=True
             ))
         
-        # Follow-up guidance section
-        if clinical_summary.follow_up_guidance:
-            followup_content = self._format_followup_section(clinical_summary.follow_up_guidance)
-            sections.append(ContentSection(
-                section_id="follow_up",
-                section_type="guidance",
-                title="Follow-up Information",
-                content=followup_content,
-                priority=6,
-                critical=False,
-                print_friendly=True
-            ))
+        # WHEN TO WORRY section (critical emergency info)
+        if clinical_summary.care_instructions:
+            # Extract warning signs from care instructions or use generic warning
+            warning_content = self._format_warning_signs_section(clinical_summary.care_instructions)
+        else:
+            warning_content = "Call your doctor if you experience any concerning symptoms"
+        
+        sections.append(ContentSection(
+            section_id="warning_signs",
+            section_type="warning",
+            title="WHEN TO WORRY",
+            content=warning_content,
+            priority=6,
+            critical=True,
+            print_friendly=True
+        ))
         
         # Disclaimers section (always last)
         disclaimer_content = self._format_disclaimers_section(clinical_summary.disclaimers)
+        
+        # Add safety validation warnings if present
+        if clinical_summary.safety_validation.warnings:
+            safety_warnings = "\n".join([f'<p class="safety-warning"><strong>Safety Warning:</strong> {html.escape(warning)}</p>' for warning in clinical_summary.safety_validation.warnings])
+            if disclaimer_content:
+                disclaimer_content = safety_warnings + "\n" + disclaimer_content
+            else:
+                disclaimer_content = safety_warnings
+        
         sections.append(ContentSection(
             section_id="disclaimers",
             section_type="legal",
@@ -391,8 +420,49 @@ class PatientFriendlyFormatter:
         
         return sections
     
+    def _format_visit_reason_section(self, chief_complaint: str) -> str:
+        """Format the visit reason section to match mockup."""
+        return f'<div class="visit-reason-content">{html.escape(chief_complaint)}</div>'
+    
+    def _format_findings_section(self, findings: str) -> str:
+        """Format the findings section to match mockup."""
+        return f'<div class="findings-content">{html.escape(findings)}</div>'
+    
+    def _format_warning_signs_section(self, warning_signs: str) -> str:
+        """Format the warning signs section to match mockup."""
+        return f'<div class="warning-content">{html.escape(warning_signs)}</div>'
+    
+    def _format_medications_section_mockup(self, medications: List[MedicationSummary]) -> str:
+        """Format medications into mockup-style bullet list with critical info."""
+        if not medications:
+            return ""
+        
+        formatted_meds = []
+        for med in medications:
+            # Format exactly like mockup: "- Metformin 500mg - twice daily with meals"
+            med_line = f"- {html.escape(med.medication_name)} {html.escape(med.dosage)} - {html.escape(med.frequency)}"
+            
+            # Add route/instructions if available
+            if med.route:
+                med_line += f" ({html.escape(med.route)})"
+            
+            if med.instructions:
+                med_line += f" {html.escape(med.instructions)}"
+            
+            # Add purpose and important notes if present (critical for safety)
+            med_content = f'<div class="medication-line">{med_line}'
+            if med.purpose:
+                med_content += f'<br><em>For: {html.escape(med.purpose)}</em>'
+            if med.important_notes:
+                med_content += f'<br><em>Important: {html.escape(med.important_notes)}</em>'
+            med_content += '</div>'
+            
+            formatted_meds.append(med_content)
+        
+        return "\n".join(formatted_meds)
+    
     def _format_medications_section(self, medications: List[MedicationSummary]) -> str:
-        """Format medications into a readable section."""
+        """Format medications into a readable section (legacy method)."""
         if not medications:
             return ""
         
@@ -420,8 +490,28 @@ class PatientFriendlyFormatter:
         
         return "\n".join(formatted_meds)
     
+    def _format_next_appointment_section_mockup(self, appointment: AppointmentSummary) -> str:
+        """Format next appointment to match mockup style."""
+        # Format like mockup: "February 15, 2024 at 2:00 PM"
+        appt_text = f'<div class="appointment-mockup">{html.escape(appointment.date)} at {html.escape(appointment.time)}'
+        
+        # Include provider name for test compatibility
+        if appointment.provider:
+            appt_text += f'<br>with {html.escape(appointment.provider)}'
+            
+        # Include location if available
+        if appointment.location:
+            appt_text += f'<br>{html.escape(appointment.location)}'
+            
+        # Include purpose for test compatibility
+        if appointment.purpose:
+            appt_text += f'<br>Purpose: {html.escape(appointment.purpose)}'
+            
+        appt_text += '</div>'
+        return appt_text
+    
     def _format_next_appointment_section(self, appointment: AppointmentSummary) -> str:
-        """Format next appointment into a readable section."""
+        """Format next appointment into a readable section (legacy method)."""
         appt_text = f"""
         <div class="appointment-item">
             <p class="appointment-datetime">
@@ -448,8 +538,38 @@ class PatientFriendlyFormatter:
         appt_text += "</div>"
         return appt_text
     
+    def _format_lab_results_section_mockup(self, lab_results: List[LabResultSummary]) -> str:
+        """Format lab results to match mockup style."""
+        if not lab_results:
+            return ""
+        
+        formatted_labs = []
+        for lab in lab_results:
+            # Format like mockup: "- HbA1c: 8.2% (High - goal is <7.0%)"
+            lab_line = f"- {html.escape(lab.test_name)}: {html.escape(lab.value)}"
+            
+            # Add status and reference range if available
+            status_info = []
+            if lab.status and lab.status.lower() not in ['normal', 'within range']:
+                status_info.append(html.escape(lab.status))
+            
+            if lab.reference_range:
+                if 'goal' in lab.reference_range.lower():
+                    status_info.append(html.escape(lab.reference_range))
+                else:
+                    # For plain text compatibility, replace < and > with words
+                    range_text = lab.reference_range.replace('<', 'less than ').replace('>', 'greater than ')
+                    status_info.append(f"normal: {html.escape(range_text)}")
+            
+            if status_info:
+                lab_line += f" ({' - '.join(status_info)})"
+            
+            formatted_labs.append(f'<div class="lab-line">{lab_line}</div>')
+        
+        return "\n".join(formatted_labs)
+    
     def _format_lab_results_section(self, lab_results: List[LabResultSummary]) -> str:
-        """Format lab results into a readable section."""
+        """Format lab results into a readable section (legacy method)."""
         if not lab_results:
             return ""
         
@@ -684,7 +804,7 @@ class PatientFriendlyFormatter:
         return FormattedOutput(
             format=OutputFormat.PLAIN_TEXT,
             content=plain_text,
-            content_type="text/plain; charset=utf-8",
+            content_type="text/plain",
             accessibility_compliant=True,
             mobile_responsive=True,  # Plain text is always mobile-friendly
             print_friendly=True,
