@@ -192,7 +192,23 @@ def test_warfarin_antibiotic_interaction_scenario():
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Quick Start - Docker Deployment (Recommended)
+```bash
+# Clone repository
+git clone <repository-url>
+cd clinical-notes-summarizer
+
+# Production deployment with Docker
+docker-compose up -d
+
+# Verify deployment
+curl -f http://localhost:8000/api/v1/health/startup
+
+# Access API documentation
+open http://localhost:8000/docs
+```
+
+### Development Setup
 ```bash
 # Python 3.9+ required
 python3 --version
@@ -202,13 +218,6 @@ python3 -m venv venv
 source venv/bin/activate  # macOS/Linux
 # or
 venv\Scripts\activate     # Windows
-```
-
-### Installation
-```bash
-# Clone repository
-git clone <repository-url>
-cd clinical-notes-summarizer
 
 # Install dependencies (with venv activated)
 pip3 install -r requirements.txt
@@ -217,6 +226,18 @@ pip3 install -r requirements.txt
 python3 -m pytest tests/ -v
 
 # Expected: 90+ tests passing with healthcare scenarios
+```
+
+### Docker Options
+```bash
+# Development environment with hot reload
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Production with monitoring
+docker-compose -f docker-compose.yml up -d
+
+# Security scan before deployment
+./docker/security/security-scan.sh
 ```
 
 ### Usage Example
@@ -292,9 +313,12 @@ Designed for seamless integration with major Electronic Health Record systems:
 ## 🔒 Privacy & Security
 
 - **No PHI Storage**: Secure processing without data retention
-- **HIPAA Compliance**: Privacy by design architecture
+- **HIPAA Compliance**: Privacy by design architecture  
+- **Container Security**: Non-root execution, read-only filesystem, vulnerability scanning
+- **PHI Protection**: Multi-layer filtering and sanitization in logs and processing
 - **Audit Trails**: Complete processing metadata without patient data
 - **Input Validation**: Comprehensive sanitization and error handling
+- **Healthcare Compliance**: Automated security scanning with healthcare-specific checks
 
 ## 📋 Development Status
 
@@ -308,11 +332,17 @@ Designed for seamless integration with major Electronic Health Record systems:
 - [x] FastAPI endpoints with FHIR compatibility
 - [x] Patient-friendly output formatter ("fridge magnet" format)
 
-### 🚧 In Progress (Phase 2)  
-- [ ] Web interface for testing and demonstration
-- [ ] Docker deployment with health checks
+### ✅ Completed (Phase 2)
+- [x] Docker deployment with comprehensive health checks
+- [x] Healthcare-compliant container orchestration (Docker Compose)
+- [x] Production security scanning and compliance validation
+- [x] Comprehensive logging with PHI protection (Fluent Bit)
+- [x] Multi-environment deployment support (dev/staging/production)
 
-### 📋 Planned (Phase 3)
+### 🚧 In Progress (Phase 3)  
+- [ ] Web interface for testing and demonstration
+
+### 📋 Planned (Phase 4)
 - [ ] Advanced drug interaction detection
 - [ ] Multi-language patient summary support
 - [ ] EHR integration examples and documentation
@@ -343,6 +373,28 @@ Designed for seamless integration with major Electronic Health Record systems:
 
 *Note: These recommendations ensure the MVP formatter evolves into a clinically-validated solution that demonstrably improves patient health outcomes through better comprehension of medical information.*
 
+## 🐳 Production Deployment
+
+### Healthcare-Compliant Docker Deployment
+Full production deployment with monitoring, security scanning, and healthcare compliance:
+
+- **Comprehensive Documentation**: See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for complete deployment guide
+- **Security Validation**: Automated vulnerability scanning with healthcare-specific checks
+- **Multi-Environment Support**: Development, staging, and production configurations
+- **Health Monitoring**: Kubernetes-ready health check endpoints
+- **Compliance Logging**: PHI-protected audit trails with Fluent Bit integration
+- **Resource Management**: Proper CPU/memory limits for healthcare workloads
+
+### Quick Production Start
+```bash
+# Security scan and deploy
+./docker/security/security-scan.sh
+docker-compose up -d
+
+# Monitor health
+curl http://localhost:8000/api/v1/health
+```
+
 ## 🤝 Contributing
 
 This project demonstrates best practices for healthcare AI development using Claude Code sub-agents. Contributions should maintain:
@@ -351,6 +403,7 @@ This project demonstrates best practices for healthcare AI development using Cla
 - **Patient Safety**: Zero tolerance for medical information errors
 - **Regulatory Compliance**: HIPAA, FDA guidelines adherence
 - **Test Coverage**: Comprehensive healthcare-specific testing
+- **Security Standards**: Container security and PHI protection requirements
 
 ## 📄 License
 
@@ -360,13 +413,14 @@ MIT License - Released for maximum healthcare benefit and community collaboratio
 
 This repository demonstrates:
 
-1. **Advanced Sub-Agent Usage**: Role-specific healthcare expertise
-2. **Domain-Specific Development**: Medical software with clinical validation
-3. **Safety-Critical Systems**: Zero-tolerance testing and validation
-4. **Collaborative AI Development**: Product Owner + SWE agent workflow
-5. **Real-World Application**: Production-ready healthcare software architecture
+1. **Advanced Sub-Agent Usage**: Role-specific healthcare expertise with specialized agents
+2. **Domain-Specific Development**: Medical software with clinical validation and safety-first architecture
+3. **Safety-Critical Systems**: Zero-tolerance testing and validation for healthcare environments
+4. **Collaborative AI Development**: Product Owner + SWE agent workflow with healthcare domain expertise
+5. **Production-Ready Deployment**: Healthcare-compliant Docker containerization with security scanning
+6. **Real-World Application**: Complete healthcare software lifecycle from TDD to production deployment
 
-**Perfect for learning**: Healthcare AI, FHIR integration, TDD with domain experts, and advanced Claude Code sub-agent orchestration.
+**Perfect for learning**: Healthcare AI, FHIR integration, TDD with domain experts, Docker deployment, healthcare security compliance, and advanced Claude Code sub-agent orchestration.
 
 ---
 
