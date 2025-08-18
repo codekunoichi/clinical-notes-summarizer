@@ -113,6 +113,9 @@ class CCDAParser:
                 "security_validated": True
             }
             
+        except (CCDASecurityError, CCDAValidationError) as e:
+            # Re-raise security and validation errors as-is
+            raise e
         except Exception as e:
             logger.error(f"CCDA parsing failed: {str(e)}")
             raise CCDAParsingError(f"Failed to parse CCDA document: {str(e)}")
@@ -150,14 +153,8 @@ class CCDAParser:
     def _parse_xml_securely(self, xml_content: str):
         """Parse XML using secure parser settings."""
         try:
-            # Use defusedxml for secure parsing
-            parser = ET.XMLParser(
-                resolve_entities=False,  # Disable entity resolution
-                no_network=True,         # Disable network access
-                strip_cdata=False        # Preserve CDATA sections
-            )
-            
-            root = ET.fromstring(xml_content.encode('utf-8'), parser=parser)
+            # Use defusedxml for secure parsing - it provides secure defaults
+            root = ET.fromstring(xml_content.encode('utf-8'))
             return root
             
         except ParseError as e:
@@ -298,15 +295,18 @@ class CCDAParser:
                 med_data['dosage_amount'] = dose_quantity.get('value')
                 med_data['dosage_unit'] = dose_quantity.get('unit')
             
-            # Frequency (effective time)
-            effective_time = substance_admin.find(f'.//{{{self.XML_NAMESPACES["hl7"]}}}effectiveTime')
-            if effective_time is not None:
-                period = effective_time.find(f'.//{{{self.XML_NAMESPACES["hl7"]}}}period')
-                if period is not None:
-                    period_value = period.get('value')
-                    period_unit = period.get('unit')
-                    if period_value and period_unit:
-                        med_data['frequency'] = f"Every {period_value} {period_unit}"
+            # Frequency (effective time) - CCDA can have multiple effectiveTime elements
+            effective_times = substance_admin.findall(f'.//{{{self.XML_NAMESPACES["hl7"]}}}effectiveTime')
+            for effective_time in effective_times:
+                # Look for PIVL_TS (periodic interval) which contains frequency info
+                if effective_time.get('{http://www.w3.org/2001/XMLSchema-instance}type') == 'PIVL_TS':
+                    period = effective_time.find(f'.//{{{self.XML_NAMESPACES["hl7"]}}}period')
+                    if period is not None:
+                        period_value = period.get('value')
+                        period_unit = period.get('unit')
+                        if period_value and period_unit:
+                            med_data['frequency'] = f"Every {period_value} {period_unit}"
+                            break
             
             # Route of administration
             route_code = substance_admin.find(f'.//{{{self.XML_NAMESPACES["hl7"]}}}routeCode')
