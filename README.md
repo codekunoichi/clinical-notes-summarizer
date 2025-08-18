@@ -4,6 +4,8 @@
 
 A healthcare AI solution that transforms incomprehensible medical summaries into patient-friendly "fridge magnet" summaries using a **hybrid structured + AI approach**. This addresses the real problem where patients can't understand their own medical information.
 
+**🆕 NOW SUPPORTING BOTH FHIR R4 JSON AND CCDA XML** with identical safety guarantees!
+
 ### 🏥 The Problem
 - Patients receive complex medical summaries filled with jargon
 - Critical medication information is buried in technical language
@@ -11,10 +13,12 @@ A healthcare AI solution that transforms incomprehensible medical summaries into
 - Patients struggle to follow treatment plans they can't understand
 
 ### 💡 The Solution
-**Hybrid Structured + AI Processing:**
+**Hybrid Structured + AI Processing with Dual Format Support:**
 - **PRESERVE EXACTLY**: Medications, dosages, lab values, appointments (zero AI modification)
 - **AI-ENHANCE**: Narrative explanations, procedure descriptions, care instructions
 - **"Fridge Magnet" Format**: Scannable, mobile-friendly, printable summaries
+- **Dual Input**: FHIR R4 JSON and CCDA XML processing with identical safety guarantees
+- **Enhanced Security**: XML security validation (XXE/DTD protection) for CCDA documents
 
 ## 🤖 Claude Code Sub-Agent Architecture
 
@@ -393,6 +397,37 @@ docker-compose up -d
 
 # Monitor health
 curl http://localhost:8000/api/v1/health
+
+# Test CCDA processing
+curl -X POST http://localhost:8000/api/v1/ccda/validate \
+  -F "ccda_file=@sample_ccda.xml"
+
+curl -X POST http://localhost:8000/api/v1/ccda/summarize \
+  -F "ccda_file=@sample_ccda.xml"
+```
+
+## 🆕 CCDA Document Processing
+
+### Supported CCDA Features
+- **Security Validation**: XXE/DTD attack protection
+- **Standard Compliance**: CCDA R2.1 template support
+- **Section Processing**: Medications, labs, vitals, allergies
+- **Data Preservation**: Same zero-tolerance guarantees as FHIR
+- **Format Detection**: Automatic routing for XML vs JSON input
+
+### CCDA API Endpoints
+```bash
+# Validate CCDA document structure and security
+POST /api/v1/ccda/validate
+
+# Generate patient-friendly summary from CCDA
+POST /api/v1/ccda/summarize
+
+# Get HTML "fridge magnet" format
+POST /api/v1/ccda/summarize/html
+
+# CCDA service health check
+GET /api/v1/ccda/health
 ```
 
 ## 🤝 Contributing
