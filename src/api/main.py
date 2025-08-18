@@ -20,6 +20,7 @@ from src.api.endpoints.summarize import router as summarize_router
 from src.api.endpoints.health import router as health_router
 from src.api.endpoints.validate import router as validate_router
 from src.api.endpoints.summary import router as summary_router
+from src.api.endpoints.ccda import router as ccda_router
 from src.api.middleware.security import SecurityMiddleware
 from src.api.middleware.rate_limiting import RateLimitMiddleware
 from src.api.middleware.phi_protection import PHIProtectionMiddleware
@@ -61,12 +62,15 @@ async def lifespan(app: FastAPI):
     try:
         from src.summarizer.hybrid_processor import HybridClinicalProcessor
         from src.summarizer.fhir_parser import FHIRMedicationParser
+        from src.summarizer.ccda_parser import CCDAParser
         
         # Test core components
         processor = HybridClinicalProcessor()
         parser = FHIRMedicationParser()
+        ccda_parser = CCDAParser()
         
         logger.info("Core processing components initialized successfully")
+        logger.info("CCDA processing capabilities: ENABLED")
     except Exception as e:
         logger.error(f"Failed to initialize core components: {e}")
         raise RuntimeError("Application startup failed - core components unavailable")
@@ -82,17 +86,22 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Clinical Notes Summarizer API",
     description="""
-    FHIR R4 compatible API for transforming clinical documents into patient-friendly summaries.
+    Healthcare document processing API supporting both FHIR R4 and CCDA formats for transforming clinical documents into patient-friendly summaries.
+    
+    ## Supported Formats
+    - **FHIR R4 JSON**: Complete FHIR Bundle processing
+    - **CCDA XML**: Continuity of Care Document processing with same safety guarantees
     
     ## Safety Features
     - **Zero PHI Storage**: No patient data is logged or persisted
     - **Critical Data Preservation**: Medications, lab values, and vital signs are never AI-processed
     - **FHIR R4 Compliance**: Full compatibility with healthcare data standards
+    - **CCDA Security**: XML security validation with XXE/DTD protection
     - **Rate Limited**: Protection against abuse and misuse
     - **Input Validation**: Comprehensive sanitization and validation
     
     ## Processing Approach
-    The API uses a **hybrid structured + AI approach**:
+    The API uses a **hybrid structured + AI approach** for both FHIR and CCDA:
     - **PRESERVE EXACTLY**: Medication names/dosages, lab values, vital signs, appointments
     - **AI-ENHANCE**: Chief complaints, diagnosis explanations, care instructions
     
@@ -239,6 +248,12 @@ app.include_router(
     summary_router,
     prefix="/api/v1",
     tags=["Summary Management"]
+)
+
+app.include_router(
+    ccda_router,
+    prefix="/api/v1",
+    tags=["CCDA Processing"]
 )
 
 # Root endpoint with API information

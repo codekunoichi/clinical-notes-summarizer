@@ -22,6 +22,8 @@ from src.models.clinical import (
     SafetyLevel
 )
 from src.summarizer.fhir_parser import FHIRMedicationParser
+from src.summarizer.ccda_parser import CCDAParser
+from src.summarizer.ccda_transformer import CCDAToFHIRTransformer
 from src.summarizer.narrative_enhancement import NarrativeEnhancer, EnhancementSettings
 
 # Configure logging
@@ -40,6 +42,8 @@ class HybridClinicalProcessor:
         """Initialize the hybrid clinical processor."""
         self.processor_version = "1.0.0"
         self.fhir_parser = FHIRMedicationParser()
+        self.ccda_parser = CCDAParser()
+        self.ccda_transformer = CCDAToFHIRTransformer()
         self.safety_enforced = True
         self.enable_ai_enhancement = enable_ai_enhancement
         
@@ -499,3 +503,55 @@ class HybridClinicalProcessor:
             self.enhancement_settings = EnhancementSettings()
         
         self.enable_ai_enhancement = enable
+
+    def process_ccda_document(self, ccda_xml: str) -> ClinicalSummary:
+        """
+        Process CCDA XML document into patient-friendly clinical summary.
+        
+        This method:
+        1. Parses CCDA XML with security validation
+        2. Transforms CCDA data to FHIR-compatible format
+        3. Processes through existing hybrid pipeline
+        4. Maintains same safety guarantees as FHIR processing
+        
+        Args:
+            ccda_xml: Raw CCDA XML document content
+            
+        Returns:
+            Complete clinical summary with safety validation
+            
+        Raises:
+            CCDAParsingError: If CCDA parsing fails
+            CCDASecurityError: If security validation fails
+            ValueError: If processing fails safety validation
+        """
+        logger.info("Starting CCDA document processing")
+        
+        try:
+            # Step 1: Parse CCDA XML with security validation
+            ccda_data = self.ccda_parser.parse_ccda_document(ccda_xml)
+            logger.info(f"CCDA parsed successfully. Sections found: {list(ccda_data['sections'].keys())}")
+            
+            # Step 2: Transform CCDA to FHIR Bundle format
+            fhir_bundle = self.ccda_transformer.transform_ccda_to_fhir_bundle(ccda_data)
+            logger.info(f"CCDA transformed to FHIR Bundle with {len(fhir_bundle['entry'])} entries")
+            
+            # Step 3: Validate transformation integrity
+            integrity_valid = self.ccda_transformer.validate_transformation_integrity(ccda_data, fhir_bundle)
+            if not integrity_valid:
+                raise ValueError("CCDA transformation failed integrity validation")
+            logger.info("CCDA transformation integrity validation passed")
+            
+            # Step 4: Process through existing hybrid pipeline
+            clinical_summary = self.process_clinical_data(fhir_bundle)
+            
+            # Step 5: Add CCDA-specific metadata
+            clinical_summary.processing_metadata.source_document_type = "ccda"
+            clinical_summary.processing_metadata.ccda_sections_processed = list(ccda_data['sections'].keys())
+            
+            logger.info(f"CCDA processing completed successfully. Summary ID: {clinical_summary.summary_id}")
+            return clinical_summary
+            
+        except Exception as e:
+            logger.error(f"CCDA processing failed: {str(e)}")
+            raise
