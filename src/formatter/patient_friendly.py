@@ -33,6 +33,15 @@ from .models import (
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Translation imports (optional)
+TRANSLATION_AVAILABLE = False
+try:
+    from src.translation.fridge_magnet_translator import FridgeMagnetTranslator
+    TRANSLATION_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Translation not available: {e}")
+    FridgeMagnetTranslator = None
+
 # PDF generation imports (optional)
 PDF_AVAILABLE = False
 try:
@@ -102,6 +111,15 @@ class PatientFriendlyFormatter:
         else:
             self.font_config = None
             self.pdf_generator = False
+        
+        # Initialize translation capability
+        if TRANSLATION_AVAILABLE:
+            self.translator = FridgeMagnetTranslator()
+            self.translation_enabled = True
+            logger.info("Translation capability enabled")
+        else:
+            self.translator = None
+            self.translation_enabled = False
         
     def format_summary(self, 
                       clinical_summary: ClinicalSummary, 
@@ -963,3 +981,94 @@ class PatientFriendlyFormatter:
 </html>
         """
         return Template(fallback_html)
+    
+    def translate_formatted_output(self, 
+                                 formatted_output: FormattedOutput, 
+                                 target_language: str) -> FormattedOutput:
+        """
+        Translate an already-formatted English fridge magnet to target language.
+        
+        This method takes the completed English fridge magnet and translates it,
+        preserving all critical medical data exactly as it appears.
+        
+        Args:
+            formatted_output: Already formatted English fridge magnet
+            target_language: Target language ('spanish' or 'mandarin')
+            
+        Returns:
+            FormattedOutput with translated content
+            
+        Raises:
+            ValueError: If translation is not available or fails
+        """
+        if not self.translation_enabled:
+            raise ValueError("Translation not available - missing translation dependencies")
+        
+        if target_language.lower() not in ['spanish', 'mandarin']:
+            raise ValueError(f"Unsupported language: {target_language}. Supported: spanish, mandarin")
+        
+        logger.info(f"Translating formatted output to {target_language}")
+        
+        try:
+            # Create new formatted output with translated content
+            translated_output = FormattedOutput(
+                content="",  # Will be populated below
+                output_format=formatted_output.output_format,
+                metadata=formatted_output.metadata.copy()
+            )
+            
+            # Translate the content based on format
+            if formatted_output.output_format == OutputFormat.HTML:
+                translated_content = self.translator.translate_html_fridge_magnet(
+                    formatted_output.content, 
+                    target_language
+                )
+            else:
+                # For text and other formats, use text translation
+                translated_content = self.translator.translate_fridge_magnet(
+                    formatted_output.content, 
+                    target_language
+                )
+            
+            translated_output.content = translated_content
+            
+            # Update metadata to reflect translation
+            translated_output.metadata['translated_to'] = target_language
+            translated_output.metadata['original_language'] = 'english'
+            translated_output.metadata['translation_timestamp'] = datetime.now().isoformat()
+            translated_output.metadata['critical_data_preserved'] = True
+            
+            logger.info(f"Translation to {target_language} completed successfully")
+            
+            return translated_output
+            
+        except Exception as e:
+            logger.error(f"Translation failed: {str(e)}")
+            raise ValueError(f"Translation failed: {str(e)}")
+    
+    def format_and_translate(self, 
+                           clinical_summary: ClinicalSummary,
+                           output_format: OutputFormat,
+                           target_language: str,
+                           custom_settings: Optional[Dict[str, Any]] = None) -> FormattedOutput:
+        """
+        One-step method to format clinical summary and translate to target language.
+        
+        This is a convenience method that combines format_summary() and translate_formatted_output().
+        
+        Args:
+            clinical_summary: Clinical summary to format and translate
+            output_format: Desired output format
+            target_language: Target language ('spanish' or 'mandarin')  
+            custom_settings: Optional custom settings
+            
+        Returns:
+            FormattedOutput with translated fridge magnet
+        """
+        # Step 1: Generate English fridge magnet
+        english_output = self.format_summary(clinical_summary, output_format, custom_settings)
+        
+        # Step 2: Translate to target language
+        translated_output = self.translate_formatted_output(english_output, target_language)
+        
+        return translated_output

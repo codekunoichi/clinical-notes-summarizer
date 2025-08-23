@@ -35,6 +35,13 @@ python-dotenv>=1.0.0
 pyyaml>=6.0.1
 click>=8.1.7
 
-# Optional: For enhanced medical NLP
+# Translation Services
+redis>=5.0.0
+azure-cognitiveservices-language-translator>=1.0.0
+beautifulsoup4>=4.12.0
+
+# Optional: For enhanced medical NLP and multilingual support  
 spacy>=3.7.2
 # python -m spacy download en_core_web_sm
+# python -m spacy download es_core_news_sm
+# python -m spacy download zh_core_web_sm
