@@ -21,6 +21,7 @@ from src.api.endpoints.health import router as health_router
 from src.api.endpoints.validate import router as validate_router
 from src.api.endpoints.summary import router as summary_router
 from src.api.endpoints.ccda import router as ccda_router
+from src.api.endpoints.translate import router as translate_router
 from src.api.middleware.security import SecurityMiddleware
 from src.api.middleware.rate_limiting import RateLimitMiddleware
 from src.api.middleware.phi_protection import PHIProtectionMiddleware
@@ -254,6 +255,11 @@ app.include_router(
     ccda_router,
     prefix="/api/v1",
     tags=["CCDA Processing"]
+)
+app.include_router(
+    translate_router,
+    prefix="/api/v1/translate",
+    tags=["Translation Services"]
 )
 
 # Root endpoint with API information
